@@ -280,3 +280,29 @@ namespace App.Controllers{
   }
 }
 ```
+
+You can swap an in-memory database for a real database once you  go into production. You can do this by adding the corresponding code into the ConfigureServices as follows :
+
+```
+public void ConfigureServices(IServiceColletion services){
+  
+  services.AddDBcontext<AppDbContext>(options =>
+     options.UseInMemoryDatabase("db")
+  );
+}
+```
+
+And we create a new file for our in memory database :
+
+```
+namespace App
+{
+  public class AppDbContext : DbContext
+  {
+    public AppDbContext(DbContextOptions options) : base(options) {}
+    public DbSet<RoomEntity> Rooms {get; set;}
+  }
+}
+```
+
+Here RoomEntity is a model for the rooms that we are renting out. Since the data is in memory this means that the data is lost when the API restarts. Next we want to seed the database with test data.
