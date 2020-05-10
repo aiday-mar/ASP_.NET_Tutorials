@@ -335,3 +335,43 @@ namespace App {
   }
 }
 ```
+
+In program.cs file we write :
+
+```
+namespace App
+{
+  public class Program
+  {
+    public static void Main(string[] args)
+    {
+      var host = CreateWebHostBuilder(args).Build();
+      InitializeDatabase(host);
+      host.Run();
+    }
+    
+    public static IWebHostBuilder CreateWebHostBuilder(string[] args) =>
+      WebHost.CreateDefaultBuilder(args)
+      .UseStartup<Startup>();
+      // where startup is the class specified earlier
+      
+    public static void InitializeDatabase(IWebHost host)
+    {
+      using (var scope = host.Services.CreateScope())
+      {
+        var services = scope.ServiceProvider;
+        
+        try 
+        {
+          SeedData.InitializeAsync(services).Wait();  // add .Wait() at the end because we don't have a synchronous context
+        }
+        catch (Exception ex)
+        {
+          var logger = services.GetRquiredService<ILogger<Program>>();
+          logger.LogError(ex, "An  error occured while seeding the database");
+        }
+      }
+    }
+  }
+}
+```
