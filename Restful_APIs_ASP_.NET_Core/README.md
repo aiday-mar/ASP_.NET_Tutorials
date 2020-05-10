@@ -305,4 +305,33 @@ namespace App
 }
 ```
 
-Here RoomEntity is a model for the rooms that we are renting out. Since the data is in memory this means that the data is lost when the API restarts. Next we want to seed the database with test data.
+Here RoomEntity is a model for the rooms that we are renting out. Since the data is in memory this means that the data is lost when the API restarts. Next we want to seed the database with test data as follows :
+
+```
+namespace App {
+  public static class SeedData
+  {
+    public static async Task InitializeAsync(IServiceProvider services)
+    {
+      await AddTestData(   // you need to wait until this AsyncTask finished
+        services.GetRequiredService<AppDbContext>() 
+        // the service associated to the context
+      );
+    }
+    
+    public static async Task AddTestData(AppDbContext context)
+    {
+      if (context.Roomy.Any())
+      {
+        //already has data
+        return;
+      }
+      context.Rooms.Add(new RoomEntity {
+        DATA HERE
+      });
+      
+      await context.SaveChangesAsync();
+    }
+  }
+}
+```
