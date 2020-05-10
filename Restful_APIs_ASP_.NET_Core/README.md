@@ -36,7 +36,9 @@ ION defines a value object. The ConfigureServices function in the Startup.cs fil
 ```
 public void ConfigureServices(IServiceCollection services){
   
-  services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_{version});
+  services.AddMvc(options => {
+    options.Filters.Add<JsonExceptionFilter>();
+  }).SetCompatibilityVersion(CompatibilityVersion.Version_{version});
   
   services.AddRouting(options => options.LowercaseUrls = true)
 }
@@ -131,3 +133,55 @@ services.AddApiVersioning(options => {
   options.ApiVersionSelector = new CurrentImplentationApiVersionSelector(options);
 });
 ```
+
+If an unhandled exception occurs in the API we throw an HTTP 500 exception error. Now we can create a model for the API error, the model will be as follows :
+
+```
+public class ApiError {
+  public string Message {get; set;}
+  public string Detail {get; set;}
+}
+```
+Then in a folder called Filters, we create a filter file which we call : `JsonExceptionFilter.cs`. Next we write the following code :
+
+```
+namespace App.Filters
+{
+  public class JsonExceptionFilter : IExceptionFilter
+  {
+    private readonly IHostingEnvironment _env;
+    
+    // the below injects the corresponding IHostingEnvironment into the class
+    public JsonExceptionFilter(IHostingEnvironment env)
+    {
+      _env = env;
+    }
+    
+    public void OnException(ExceptionContext context)
+    {
+      var error = new ApiError();
+      
+      if(_env.isDevelopment())    // meaning when we are actually developing the application then we have the following error message and the error details
+      {
+        error.Message = context.Exception.Message;
+        error.Detail = context.Exception.StackTrace;
+      }
+      else 
+      {
+        error.Message = "A server error occured.";
+        error.Details = context.Exception.Message;
+      }
+      
+      context.Result = new ObjectResult(error) 
+      {
+        StatusCode = 500
+      };
+    }
+  }
+}
+```
+
+The filter is run before or after ASP .NET core processes a request. The context.Result in a way returns a response from the HTTP request.
+
+
+**Securing the Api**
