@@ -65,6 +65,10 @@ namespace App.Controllers {
         {
           // here we access the GetRooms method from another controller, the one described below
           href = Url.Link(nameof(RoomsController.GetRooms), null)
+        },
+        info = new 
+        {
+          href = Url.Link(nameof(InfoController.GetInfo), null)
         }
       };
       
@@ -74,7 +78,7 @@ namespace App.Controllers {
 }
 ```
 
-We use Postman to make HTTP requests to the API. To use postman you need to copy the sslPort number from the launchSettings.json file, then you make a get request to the following link : `https://localhost:{sslPort}`. Now we create a new controller which will manage rooms as follows :
+We use Postman to make HTTP requests to the API. It is a good idea to disable the ssql certificate tempoarily. To use postman you need to copy the sslPort number from the launchSettings.json file, then you make a get request to the following link : `https://localhost:{sslPort}`. Now we create a new controller which will manage rooms as follows :
 
 ```
 namespace App.Controllers
@@ -211,6 +215,67 @@ namespace App.Filters
     protected override void HandleNonHttpsRequest (AuthorizationFilterContext filterContext) 
     {
       filterContext.Result = new StatusCodeResult(400);
+    }
+  }
+}
+```
+
+Another security concern when building APIs is dealing with CORS or Cross-Origin Resource Sharing. This is a concern only if the API is accessed by the browser, and it is hosted on a separate domain from the rest of the app. For example this is the case when you host your app on 'example.com' and your get your resources from 'api.example.com'. Modern browsers enforce the Same-Origin Policy. The origin of a page is defined by the combination of the scheme, the host and the port number. But if you want to use different origins, then this is where CORS comes in. CORS allows to define some origins in the whitelist and relax the browser Same-Origin Policy. In the ConfigureService method of Startup.cs we can write :
+
+```
+services.AddCors(options =>
+{
+  options.AddPolicy("AllowMyApp" policy => policy.AllowAnyOrigin())
+});
+
+...
+
+app.UseCors("AllowMyApp");
+```
+
+<h3><strong>Represent resources </strong></h3>
+
+We make a simple abstract class called Resource which we will extend in order to create other resources.
+
+```
+namespace App.Models {
+  
+  public abstract class Resource 
+  {
+    [JsonProperty(Order = -2)]
+    public string Href {get; set;}
+  }
+}
+```
+
+ASP .NET core is set up to read appsettings.json file from the startup. Suppose you had some json data in a file and it corresponded to the class Info then you could inject this inton the app by writing under the ConfigureServices method the following code :
+
+```
+public void ConfigureServices (IServiceCollection services) {
+  services.Configure<Info>(Configuration.GetSection("Info"));
+  ...
+}
+```
+The above code will return the data as a RESTful resources. We can create a controller to return the above data. Below we are returning a strongly typed model.
+
+```
+namespace App.Controllers{
+  
+  public class InfoController : ControllerBase
+  {
+    private readonly HotelInfo _hotelInfo;
+    
+    public InfoController(IOptions<HotelInfo> hotelInfoWrapper)
+    {
+      _hotelInfo = hotelInfoWrapper.Value;
+    }
+    
+    [HttpGet(Name = nameof(GetInfo))]
+    [ProducesResponseType(200)]
+    public ActionResult<HotelInfo> GetInfo()
+    {
+      _hotelInfo.Href = Urk.Link(nameof(GetInfo), null);
+      return _hotelInfo;
     }
   }
 }
