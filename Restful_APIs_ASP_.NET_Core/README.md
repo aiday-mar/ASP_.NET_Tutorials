@@ -38,6 +38,7 @@ public void ConfigureServices(IServiceCollection services){
   
   services.AddMvc(options => {
     options.Filters.Add<JsonExceptionFilter>();
+    options.Filters.Add<RequireHttpsOrCloseAttribute>();
   }).SetCompatibilityVersion(CompatibilityVersion.Version_{version});
   
   services.AddRouting(options => options.LowercaseUrls = true)
@@ -201,4 +202,16 @@ app.UseHttpsRedirection();
 app.UseMvc();
 ```
 
-You can enforce the website to not accept HTTP requests by creating the following file : `RequireHttpsOrCloseAttribute`
+You can enforce the website to not accept HTTP requests by creating the following file : `RequireHttpsOrCloseAttribute`.
+
+```
+namespace App.Filters
+{
+  public class RequireHttpsOrCloseAttribute : RequireHttpsAttribute{
+    protected override void HandleNonHttpsRequest (AuthorizationFilterContext filterContext) 
+    {
+      filterContext.Result = new StatusCodeResult(400);
+    }
+  }
+}
+```
