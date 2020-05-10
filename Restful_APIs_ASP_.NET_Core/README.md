@@ -184,4 +184,4 @@ namespace App.Filters
 The filter is run before or after ASP .NET core processes a request. The context.Result in a way returns a response from the HTTP request.
 
 
-**Securing the Api**
+<h1><strong>Securing the Api</strong>/h1>
