@@ -185,3 +185,20 @@ The filter is run before or after ASP .NET core processes a request. The context
 
 
 <h3><strong>Securing the Api</strong></h3>
+
+There are different types of securities. For example 'transport security' meaning keeping the connection between the client and the server secure. 'Application security' is linked to authentication and the fact that users are allowed to perform certain actions. 
+
+For transport security, some measures that you could take include for example rejecting connection attempts from HTTP and allowing only HTTPS connection attempts. ASP .NET core web applications typically run on the Kestrel web server. Kestrel can be deployed directly or with a reverse proxy like IIS or NGINX.
+
+The HTTP Strict Transport Security Header or the HSTS. The HSTS header is returned by the server and instructs web browesers to prever the user from accidentally connecting over HTTP. The server will refuse to connect unless the header corresponds to HTTPS. ASP .NET core 2.0 and later come with https turned on by default. The Startup.cs file is initiliazed with the following code at the bottom:
+
+```
+else 
+{
+  app.UseHsts();
+}
+app.UseHttpsRedirection();
+app.UseMvc();
+```
+
+You can enforce the website to not accept HTTP requests by creating the following file : `RequireHttpsOrCloseAttribute`
