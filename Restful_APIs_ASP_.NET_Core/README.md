@@ -41,3 +41,67 @@ public void ConfigureServices(IServiceCollection services){
   services.AddRouting(options => options.LowercaseUrls = true)
 }
 ```
+
+ControllerBase class is a stripped down version without the view and with razor features you only need in a web app. Below we have the starting code for the root contoller.
+
+```
+namespace App.Controllers {
+  
+  [Route("/")]
+  [ApiController]   // Api controllers have some extra features
+  public class RootController : ControllerBase    // Here it extends the ControllerBase as decribed above
+  {
+    [HttpGet(Name = nameof(Get))]   // so here we assign to the Name property the name of the following method
+    [ProducesResponseType(200)]  // tells asp .net core and swagger ui that this method could return 200, an optional attribute 
+    public IActionResult Get()  // this Get method specifies what to do with an incoming HTTP request
+    {
+      var response = new {
+        href = Url.Link(nameof(Get), null)   // no parameters and here we take the name of the Get method hereby
+        rooms = new 
+        {
+          // here we access the GetRooms method from another controller, the one described below
+          href = Url.Link(nameof(RoomsController.GetRooms), null)
+        }
+      };
+      
+      rerturn Ok(response);
+    }
+  }  
+}
+```
+
+We use Postman to make HTTP requests to the API. To use postman you need to copy the sslPort number from the launchSettings.json file, then you make a get request to the following link : `https://localhost:{sslPort}`. Now we create a new controller which will manage rooms as follows :
+
+```
+namespace App.Controllers
+{
+  [Route("/[controller]")]  // here we have that RoomsController is stripped from the Controller and the name is appended to the end of the route
+  [ApiController]
+  public class RoomsController : ControllerBase{
+  
+    [HttpGet(Name = nameof(GetRooms))]
+    public IActionResult GetRooms() 
+    {
+      throw new NotImplementedException();
+    }
+  }
+}
+```
+
+OpenAPI is a format for describing RESTful APIs. OpenAPI is a system of retrospection/reflection for your API. A file called swagger.json is used as a strongly types client for your API, or it is used to generate API tests. Swagger UI helps to interact with the API in real time. To add OpenAPI to the project you can use either SwashBuckle or NSwag. For example first in the nuget package manager, you can install NSwage.AspNetCore, then you can add the following code to the Configure method.
+
+```
+if (env.IsDevelopment()){
+
+  app.UseDeveloperExceptionPage();
+  
+  app.UseSwaggerUi3WithApiExplorer( options =>
+  {  
+    options.GeneratorSettings.DefaultPropertyNameHandling =
+    NJsonSchema.PropertyNameHandlign.CamelCase;
+  });
+  
+} 
+```
+
+Then you go to the localhost with the corresponding ssl port and you find a way to quickly test the API you are building.
