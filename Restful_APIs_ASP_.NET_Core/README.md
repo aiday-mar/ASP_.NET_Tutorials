@@ -12,4 +12,32 @@ Among  HTTP method, GET and HEAD are read-only and safe.
 
 Idempotent Methods, the effect of mutiple identical requests is the same as one request. Use PUT to create or fully update resources with a known ID. A method is not idempotent whe the resource state on the server changes between tries.
 
-Generally POST is used to create , PUT for full updates, PATCH for partial updates. JSON has eclipsed XML in popularity because it is lightweight and human readable. However i
+Generally POST is used to create , PUT for full updates, PATCH for partial updates. JSON has eclipsed XML in popularity because it is lightweight and human readable. However it does not have a document schema. HAL is designed for hypermedia, so is ION. In ION links between resources are modelled as JSON objects. Links in ION are specifies as follows :
+
+```
+{
+  "href" : {link}
+  "method" : {GET, POST etc}
+  "rel" : [ "self" ]
+}
+```
+
+A resources is defined as follows where var is a random key, and it has a value val associated to it :
+
+```
+{
+  "href" : {link}
+  "var": "val"
+  ...
+}
+```
+ION defines a value object. The ConfigureServices function in the Startup.cs file is where we include depencies used throughout the project. The Configure method sets up the application pipeline. This is where you add the middleware you want to respond to incoming requests. Our ConfigureServices function becomes :
+
+```
+public void ConfigureServices(IServiceCollection services){
+  
+  services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_{version});
+  
+  services.AddRouting(options => options.LowercaseUrls = true)
+}
+```
