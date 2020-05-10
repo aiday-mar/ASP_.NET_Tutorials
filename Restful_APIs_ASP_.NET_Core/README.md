@@ -49,6 +49,7 @@ namespace App.Controllers {
   
   [Route("/")]
   [ApiController]   // Api controllers have some extra features
+  [ApiVersion("1.0")]
   public class RootController : ControllerBase    // Here it extends the ControllerBase as decribed above
   {
     [HttpGet(Name = nameof(Get))]   // so here we assign to the Name property the name of the following method
@@ -105,3 +106,28 @@ if (env.IsDevelopment()){
 ```
 
 Then you go to the localhost with the corresponding ssl port and you find a way to quickly test the API you are building.
+
+There are several ways to version the API. The versioning can happen through the url in the following ways.
+
+```
+GET /rooms
+Accept : application/ion+json; v = 2.0
+```
+
+Or as follows :
+
+```
+https://example.io/v1/rooms
+```
+The later is not a good idea because there is no unique identifier. The first type is more common, it is called the media type (header) versioning approach. Next in the nuget package manager you can install the following `Microsoft.AspNetCore.Versioning`. Then we can add some code to implement the versioning into the ConfigureServices method in the Startup.cs file. We write the following code :
+
+```
+services.AddApiVersioning(options => {
+
+  options.DefaultApiVersion = new ApiVersion(1,0);
+  options.ApiVersionReader = new MediaTypeApiVersionReader();
+  options.AssumeDefaultVersionWhenUnspecified = true;
+  options.ReportApiVersions = true;
+  options.ApiVersionSelector = new CurrentImplentationApiVersionSelector(options);
+});
+```
