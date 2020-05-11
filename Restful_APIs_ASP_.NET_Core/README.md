@@ -375,3 +375,43 @@ namespace App
   }
 }
 ```
+Now we want to return a resource from the controller : 
+
+```
+public class RoomsController : ControllerBase 
+{
+  private readonly AppDbContext _context;
+  
+  public RoomsController(AppDbContext context)
+  {
+    _context = context;
+  }
+  
+  [HttpGet(Name = nameof(GetRooms))]
+  public IActionResult GetRooms()
+  {
+    throw new NotImplementedException();
+  }
+  
+  [HttpGet("{roomId}", Name = nameof(GetRoomsById))]
+  [ProducesResponseType(404)]
+  public async Task<ActionResult<Room>> GetRoomById(Guid roomId)
+  {
+    var entity = await _context.Rooms.SingleOrDefaultAsync(x => x.Id == roomId);
+    
+    if(entity == null)
+    {
+      return NotFound();
+    }
+    
+    var resource = new Room
+    {
+      Href = Url.Link(nameof(GetRoomById), new {roomId == entity.Id}),
+      Name = entity.Name,
+      Rate = entity.Rate/ 100.0m
+    }
+    
+    return resource;
+  }
+}
+```
