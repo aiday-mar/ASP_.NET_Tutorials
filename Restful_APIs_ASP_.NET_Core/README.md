@@ -59,18 +59,12 @@ namespace App.Controllers {
     [ProducesResponseType(200)]  // tells asp .net core and swagger ui that this method could return 200, an optional attribute 
     public IActionResult Get()  // this Get method specifies what to do with an incoming HTTP request
     {
-      var response = new {
-        href = Url.Link(nameof(Get), null)   // no parameters and here we take the name of the Get method hereby
-        rooms = new 
-        {
-          // here we access the GetRooms method from another controller, the one described below
-          href = Url.Link(nameof(RoomsController.GetRooms), null)
-        },
-        info = new 
-        {
-          href = Url.Link(nameof(InfoController.GetInfo), null)
-        }
-      };
+      var response = new RootResponse
+      {
+        Href = null,
+        Rooms = Link.To(nameof(RoomsController.GetRooms)),
+        Info = Link.To(nameof(InfoController.GetInfo)),
+      }
       
       rerturn Ok(response);
     }
@@ -78,7 +72,7 @@ namespace App.Controllers {
 }
 ```
 
-We use Postman to make HTTP requests to the API. It is a good idea to disable the ssql certificate tempoarily. To use postman you need to copy the sslPort number from the launchSettings.json file, then you make a get request to the following link : `https://localhost:{sslPort}`. Now we create a new controller which will manage rooms as follows :
+The code for Link.To is specified further down. We use Postman to make HTTP requests to the API. It is a good idea to disable the ssql certificate tempoarily. To use postman you need to copy the sslPort number from the launchSettings.json file, then you make a get request to the following link : `https://localhost:{sslPort}`. Now we create a new controller which will manage rooms as follows :
 
 ```
 namespace App.Controllers
@@ -413,10 +407,12 @@ namespace App.Services
   public class DefaultRoomService : IRoomService
   {
     private readonly AppDbContext _context;
+    private readonly IMapper _mapper;
     
-    public DefaultRoomService(AppDbContext context)
+    public DefaultRoomService(AppDbContext context, IMapper mapper)
     {
       _context = context;
+      _mapper = mapper;
     }
     
     public Task<Room> GetRoomsAsync(Guid id)
@@ -429,16 +425,66 @@ namespace App.Services
           return NotFound();
         }
 
-        var resource = new Room
-        {
-          Href = Url.Link(nameof(GetRoomById), new {roomId == entity.Id}),
-          Name = entity.Name,
-          Rate = entity.Rate/ 100.0m
-        }
-
-        return resource;
+     
+        return _mapper.Map<Room>(entity);
     }
 }
 ```
 
-We can use auto mapper which is a tool used to map models automatically. This tool is used to define how entity ojects are mapped to their corresponding resource objects.
+In the above we used a mapper which is written below :
+
+```
+namespace App.Infrastructure
+{
+  public class MappingProfile : Profile
+  {
+    public MappingProfile()
+    {
+      CreateMap<RoomEntity, Room>().ForMember(dest => dest.Rate, opt => opt.MapFrom(src => src.Rate/100.0m));
+    }
+  }
+}
+```
+We need to add the above service to the configure services method in Startup.cs
+
+```
+services.AddAutoMapper(
+  options => options.AddProfile<MappingProfile>
+);
+```
+Then after we specify the Link class which is used in the RootController.
+
+```
+namespace App.Models
+{
+  public class Link
+  {
+    pulic const string  GetMethod = "GET";
+    
+    public Static Link To(string routeName, object routeValue = null) => new Link
+    {
+      RouteName = routeName,
+      RouteValues = routeValues,
+      Method = GetMethod, 
+      Relations = null,
+    }
+    
+    [JsonProperty(Order = -4)]
+    public string Href {get; set;}
+    
+    // the below code means that you ignore the null values
+    [JsonProperty(Order = -3, PropertyName = "rel", NullValueHandling = NullValueHandling.Ignore)]
+    public string[] Relations {get; set;}
+    
+    [JsonProperty(Order = -2, DefaultValueHandling = DefaultValueHandling.Ignore, NullValueHandling = NullValueHandling.Ignore)]
+    [DefaultValue(GetMethod)]
+    public string Method {get; set;}
+    
+    [JsonIgnore]
+    public string RouteName {get; set;}
+    
+    [JsonIgnore]
+    public object RouteValues {get; set;}
+  }
+}
+```
