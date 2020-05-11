@@ -380,11 +380,11 @@ Now we want to return a resource from the controller :
 ```
 public class RoomsController : ControllerBase 
 {
-  private readonly AppDbContext _context;
+  private readonly IRoomService _roomService;
   
-  public RoomsController(AppDbContext context)
+  public RoomsController(IRoomService roomService)
   {
-    _context = context;
+    _roomService = roomService;
   }
   
   [HttpGet(Name = nameof(GetRooms))]
@@ -395,23 +395,49 @@ public class RoomsController : ControllerBase
   
   [HttpGet("{roomId}", Name = nameof(GetRoomsById))]
   [ProducesResponseType(404)]
+  [ProducesResponseType(200)]
   public async Task<ActionResult<Room>> GetRoomById(Guid roomId)
   {
-    var entity = await _context.Rooms.SingleOrDefaultAsync(x => x.Id == roomId);
-    
-    if(entity == null)
-    {
-      return NotFound();
-    }
-    
-    var resource = new Room
-    {
-      Href = Url.Link(nameof(GetRoomById), new {roomId == entity.Id}),
-      Name = entity.Name,
-      Rate = entity.Rate/ 100.0m
-    }
-    
-    return resource;
+    var room = await _roomService.GetRoomAsync(roomId);
+    if (room == null) return NotFound();
+    return room;
   }
+}
+```
+
+Where we used the following code for a service :
+
+```
+namespace App.Services
+{
+  public class DefaultRoomService : IRoomService
+  {
+    private readonly AppDbContext _context;
+    
+    public DefaultRoomService(AppDbContext context)
+    {
+      _context = context;
+    }
+    
+    public Task<Room> GetRoomsAsync(Guid id)
+    {
+      
+       var entity = await _context.Rooms.SingleOrDefaultAsync(x => x.Id == roomId);
+
+        if(entity == null)
+        {
+          return NotFound();
+        }
+
+        var resource = new Room
+        {
+          Href = Url.Link(nameof(GetRoomById), new {roomId == entity.Id}),
+          Name = entity.Name,
+          Rate = entity.Rate/ 100.0m
+        }
+
+        return resource;
+    }
+   
 }
 ```
