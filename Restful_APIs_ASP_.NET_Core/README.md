@@ -438,6 +438,7 @@ namespace App.Services
 
         return resource;
     }
-   
 }
 ```
+
+We can use auto mapper which is a tool used to map models automatically. This tool is used to define how entity ojects are mapped to their corresponding resource objects.
