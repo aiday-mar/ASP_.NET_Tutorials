@@ -36,8 +36,9 @@ We write the code as follows :
 ```
 namespace App.Models
 {
-  public abstract class Resource
+  public abstract class Resource : Link  // The resource inherits from the Link class defined below
   {
+    [JsonIgnore]
     public Link Self {get; set;}
   }
 }
@@ -74,7 +75,7 @@ namespace App.Controllers {
       var response = new RootResponse
       {
         Self = Link.To(nameof(Get)),
-        Rooms = Link.To(nameof(RoomsController.GetRooms)),
+        Rooms = Link.ToCollection(nameof(RoomsController.GetRooms)),
         Info = Link.To(nameof(InfoController.GetInfo)),
       }
       
@@ -394,9 +395,17 @@ public class RoomsController : ControllerBase
   }
   
   [HttpGet(Name = nameof(GetRooms))]
-  public IActionResult GetRooms()
+  [ProducesResponseType(200)]
+  public async Task<ActionResult<Collection<Room>>> GetRooms()
   {
-    throw new NotImplementedException();
+    var rooms = await _roomService.GetRoomsAsync();
+    var collection = new Collection<Room>
+    {
+      Self = Link.To(nameof(GetRooms)),
+      Value = rooms.ToArray();
+    };
+    
+    return collection;
   }
   
   [HttpGet("{roomId}", Name = nameof(GetRoomsById))]
@@ -419,26 +428,33 @@ namespace App.Services
   public class DefaultRoomService : IRoomService
   {
     private readonly AppDbContext _context;
-    private readonly IMapper _mapper;
+    private readonly IConfigurationProvider _mappingConfiguration
     
-    public DefaultRoomService(AppDbContext context, IMapper mapper)
+    public DefaultRoomService(AppDbContext context, IConfigurationProvider mappingConfiguration)
     {
       _context = context;
-      _mapper = mapper;
+      _mappingConfiguration = mappingConfiguration;
     }
     
     public Task<Room> GetRoomsAsync(Guid id)
     {
       
-       var entity = await _context.Rooms.SingleOrDefaultAsync(x => x.Id == roomId);
+       var entity = await _context.Rooms.SingleOrDefaultAsync(x => x.Id == id);
 
         if(entity == null)
         {
-          return NotFound();
+          return null;
         }
-
-     
-        return _mapper.Map<Room>(entity);
+        
+        var mapper = _mappingConfiguration.CreateMapper();
+        return mapper.Map<Room>(entity);
+    }
+    
+    public async Task<IEnumerable<Room>> GetRoomsAsync()
+    {
+      var query = _context.Rooms.ProjectTo<Room>();
+      
+      return await query.ToArrayAsync();
     }
 }
 ```
@@ -483,6 +499,14 @@ namespace App.Models
       Relations = null,
     }
     
+    public Static Link ToCollection(string routeName, object routeValue = null) => new Link
+    {
+      RouteName = routeName,
+      RouteValues = routeValues,
+      Method = GetMethod, 
+      Relations = new[] {"collection"},
+    }
+    
     [JsonProperty(Order = -4)]
     public string Href {get; set;}
     
@@ -503,3 +527,71 @@ namespace App.Models
 }
 ```
 
+Among the resources that we can return, it is possible to return collections. The corresponding code is :
+
+```
+namespace App.Models
+{
+  public class Collection<T> : Resource
+  {
+    public T[] Value {get; set;}
+  }
+}
+```
+
+Below we define the IRoomService which we used in some of the codes above :
+
+```
+namespace App.Services
+{
+  public interface IRoomService
+  {
+    Task<IEnumerable<Room>> GetRoomsAsync();
+    Task<Room> GetRoomsAsync(Guid id);
+  }
+}
+```
+In a similar manner we have :
+
+```
+namespace App.Models
+{
+  public class PagedCollection<T> : Collection<T>
+  {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public int? Offset {get; set;}
+    
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public int? Limit {get; set;}
+    
+    public int Size {get; set;}
+    
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public Link First {get; set;}
+    
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public Link Previous {get; set;}
+    
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public Link Next {get; set;}
+    
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public Link Last {get; set;}
+  }
+}
+```
+We create a second model as follows :
+
+```
+namespace App.Models
+{
+  public class PagingOptions
+  {
+    [Range(1, 99999, ErrorMessage="Offset must be greater than zero")]
+    public int? Offset {get; set;}
+    
+    [Range(1, 100, ErrorMessage="Limit must be greater than 0 and less than 100")]
+    public int? Limit {get; set;}
+  }
+} 
+```
