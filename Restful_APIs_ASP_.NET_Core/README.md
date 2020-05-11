@@ -388,10 +388,14 @@ Now we want to return a resource from the controller :
 public class RoomsController : ControllerBase 
 {
   private readonly IRoomService _roomService;
+  private readonly IOpeningService _openingService;
+  private readonly PagingOptions _defaultPagingOptions;
   
-  public RoomsController(IRoomService roomService)
+  public RoomsController(IRoomService roomService, IOpeningService openingServices, IOptions<PagingOptions> defaultPagingOptionsWrapper)
   {
     _roomService = roomService;
+    _openingService = openingService;
+    _defaultPagingOptions = defaultPagingOptionsWrapper.Value;
   }
   
   [HttpGet(Name = nameof(GetRooms))]
@@ -404,6 +408,29 @@ public class RoomsController : ControllerBase
       Self = Link.To(nameof(GetRooms)),
       Value = rooms.ToArray();
     };
+    
+    return collection;
+  }
+  
+  [HttpGet("openings", Name = nameof(GetAllRoomOpenings))]
+  [ProducesResponsesType(400)]
+  [ProducesResponseType(200)]
+  public async Task<ActionResult<Collection<Opening>>> GetAllRoomOpenings(
+  [FromQuery] PagingOptions pagingOptions = null)
+  {
+    pagingOptions.Offset = pagingOptions.Offset ?? _defaultPagingOptions.Offset;
+    pagingOptions.Limit = pagingOptions.Limit ?? _defaultPagingOptions.Limit;
+
+    var openings = await _openingService.GetOpeningsAsync(pagingOptions);
+    
+    var collection = new PagedCollection<Opening>()
+    {
+      Self = Link.ToCollection(nameof(GetAllRoomOpenings)),
+      Value = openings.Items.ToArray(),
+      Size = openings.TotalSize,
+      Offset = pagingOptions.Offset.Value,
+      Limit = pagingOptions.Limit.Value,
+    }
     
     return collection;
   }
@@ -592,6 +619,49 @@ namespace App.Models
     
     [Range(1, 100, ErrorMessage="Limit must be greater than 0 and less than 100")]
     public int? Limit {get; set;}
+    
+    public PagingOptions Replace(PagingOptions newer) 
+    {
+      return new PagingOptions {
+        Offset = newer.Offset ?? this.Offset,
+        Limit = newer.Limit ?? this.Limit,
+      };
+    }
   }
 } 
 ```
+
+Not that a part of the code is not included here. The above can be used in another class as follows
+
+```
+var pagedOptions = allOpenings.Skip(pagingOptions.Offset.Value).Take(pagingOptions.Limit.Value);
+```
+
+We can also add some default pagination as follows. In the appsettings.json file you can write :
+
+```
+  "DefaultPagingOptions":{
+    "limit" : 25,
+    "offset" : 0,
+  }
+```
+Then you can add this to the ConfigureServices method in the Startup.cs file as follows  :
+
+```
+services.Comfigure<PagingOptions>(Configuration.GetSection("DefaultPagingOptions"));
+```
+
+We can configure the behavior of the Api when errors occur as follows:
+
+```
+services.Configure<ApiBehaviorOptions>(options =>
+{
+  options.InvalidModelStateResponseFactory = context =>
+  {
+    var errorResponse = new ApiError(context.ModelState);
+    return new BadRequestObjectResult(errorResponse);
+  };
+};
+```
+
+Now we want to add a navigation to our paged collection responses.
