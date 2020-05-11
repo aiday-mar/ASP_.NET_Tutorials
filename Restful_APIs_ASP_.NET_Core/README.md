@@ -31,6 +31,18 @@ A resources is defined as follows where var is a random key, and it has a value 
   ...
 }
 ```
+We write the code as follows :
+
+```
+namespace App.Models
+{
+  public abstract class Resource
+  {
+    public Link Self {get; set;}
+  }
+}
+```
+
 ION defines a value object. The ConfigureServices function in the Startup.cs file is where we include depencies used throughout the project. The Configure method sets up the application pipeline. This is where you add the middleware you want to respond to incoming requests. Our ConfigureServices function becomes :
 
 ```
@@ -61,7 +73,7 @@ namespace App.Controllers {
     {
       var response = new RootResponse
       {
-        Href = null,
+        Self = Link.To(nameof(Get)),
         Rooms = Link.To(nameof(RoomsController.GetRooms)),
         Info = Link.To(nameof(InfoController.GetInfo)),
       }
@@ -440,7 +452,9 @@ namespace App.Infrastructure
   {
     public MappingProfile()
     {
-      CreateMap<RoomEntity, Room>().ForMember(dest => dest.Rate, opt => opt.MapFrom(src => src.Rate/100.0m));
+      CreateMap<RoomEntity, Room>().ForMember(dest => dest.Rate, opt => opt.MapFrom(src => src.Rate/100.0m))
+      .ForMember(dest => dest.Self, opt => opt.MapFrom(src =>
+        Link.To(nameof(Controllers.RoomsController.GetRoomsById), new {roomId = src.Id}));
     }
   }
 }
