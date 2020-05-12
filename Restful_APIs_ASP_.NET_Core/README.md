@@ -423,14 +423,12 @@ public class RoomsController : ControllerBase
 
     var openings = await _openingService.GetOpeningsAsync(pagingOptions);
     
-    var collection = new PagedCollection<Opening>()
-    {
-      Self = Link.ToCollection(nameof(GetAllRoomOpenings)),
-      Value = openings.Items.ToArray(),
-      Size = openings.TotalSize,
-      Offset = pagingOptions.Offset.Value,
-      Limit = pagingOptions.Limit.Value,
-    }
+    var collection = PagedCollection<Opening>.Create(
+    Link.ToCollection(nameof(GetAllRoomOpenings)),
+    openings.Items.ToArray(),
+    openings.TotalSize,
+    pagingOptions
+    );
     
     return collection;
   }
@@ -573,7 +571,8 @@ namespace App.Services
 {
   public interface IRoomService
   {
-    Task<IEnumerable<Room>> GetRoomsAsync();
+    Task<IEnumerable<Room>> GetRoomsAsync(PagingOptions pagingOptions, 
+    SortOptions<Room, RoomEntity> sortOptions);
     Task<Room> GetRoomsAsync(Guid id);
   }
 }
@@ -585,6 +584,19 @@ namespace App.Models
 {
   public class PagedCollection<T> : Collection<T>
   {
+    public static PagedCollection<T> Create(Link self, T[] items, int size, PagingOptions pagingOptions) 
+    => new PagedCollection<T>
+    {
+      Self = self,
+      Value = items,
+      Size = size,
+      Offset = pagingOptions.Limit,
+      First = self,
+      Next = GetNextLink(self, size, pagingOptions),
+      Previous = GetPreviousLink(self, size, pagingOptions),
+      Last = GetLastLink(self, size, pagingOptions),
+    }
+    
     [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
     public int? Offset {get; set;}
     
@@ -604,6 +616,30 @@ namespace App.Models
     
     [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
     public Link Last {get; set;}
+    
+    private static Link GetNextLink(Link self, int size, PagingOptions pagingOptions)
+    {
+      if (pagingOptions?.Limit == null) return null;
+      if (pagingOptions?.Offset == null) return null;
+      
+      var limit = pagingOptions.Limit.Value;
+      var offset = pagingOptions.Offset.Value;
+      var nextPage = offset + limit;
+      
+      if (nextPage >= size)
+      {
+        return null;
+      }
+      
+      var parameters = new RouteValueDictionary(self.RouteValues)
+      {
+        ["limi"] = limit,
+        ["offset"] = nextPage,
+      };
+      
+      var newLink = Link.ToCollection(self.RouteName, parameters);
+      return newLink;
+    }
   }
 }
 ```
@@ -664,4 +700,105 @@ services.Configure<ApiBehaviorOptions>(options =>
 };
 ```
 
-Now we want to add a navigation to our paged collection responses.
+Now we want to add a navigation to our paged collection responses. Next we want to add sorting behavior so we will need to add the following code :
+
+```
+namespace App.Models
+{
+  public class Room : Resource
+  {
+    [Sortable]
+    public string Name {get;set;}
+    
+    [Sortable]
+    public decimal Rate {get; set;}
+  }
+}
+```
+Next we write the following code. IValidatableObject is an interface that holds methods that will be called when it's trying to validate the parameters passed into the controllers. The Apply method after is used to apply the sort options to a database query.
+
+````
+namespace App.Models
+{
+  public class SortOptions<T, TEntity> : IValidateObject
+  {
+    public string[] OrderBy {get; set;}
+    
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+      var processor = new SortOptionsProcessor<T, TEntity>(OrderBy);
+    }
+    
+    public IQueryable<TEntity> Apply(IQueryable<TEntity> query)
+    {
+    
+    }
+  }
+}
+````
+
+We can use the above as follows 
+
+```
+public async Task<PagedResults<Room>> GetRoomsAsync(
+  PagingOptions pagingOptions,
+  SortOptions<Room, RoomEntity> sortOptions) { 
+  
+  IQueryable<RoomEntity> query = _context.Rooms;
+  query = sortOptions.Apply(query);
+  ... }
+)
+```
+
+The function used is written below : 
+
+```
+namespace App.Infrastructure
+{
+  public class SortOptionsProcessor<T, TEntity>
+  {
+    private readonly string[] _orderBy;
+    
+    public SortOptionsProcessor(string[] orderBy)
+    {
+      _orderBy = orderBy;
+    }
+    
+    public IEnumerable<SortTerm> GetAllTerms()
+    {
+      if (_orderBy == null) yield break;
+      
+      foreach (var term in _orderBy)
+      {
+        if (string.IsNullOrEmpty(term)) continue;
+        
+        var tokens = term.Split(' ');
+        
+        it(tokens.Length == 0)
+        {
+          yield return new SortTerm {Name = term};
+          continue;
+        }
+        
+        var descengin = tokens.Length > 1 && tokens[1].Equals("desc", StringComparison.OrdinalIgnoreCase)
+        
+        yield return new SortTerm
+        {
+          Name = tokens[0],
+          Descending = descending,
+        };
+      }
+    }
+    
+    private static IEnumerable<SortTerm> GetTermsFromModel() => typeof(T).GetTypeInfo().DeclaredProperties.
+    
+  }
+  
+  public class SortTerm
+  {
+    public string Name {get; set;}
+    
+    public bool Descending {get; set; }
+  }
+}
+```
