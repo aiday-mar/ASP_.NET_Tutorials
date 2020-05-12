@@ -727,6 +727,15 @@ namespace App.Models
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
       var processor = new SortOptionsProcessor<T, TEntity>(OrderBy);
+      
+      var validTerms = processor.GetValidTerms().Select(x => x.Name);
+      var invalidTerms = processos.GetAllTerms().Select(x => x.Name )
+      .Except(validTerms, StringComparer.OrdinalIgnoreCase);
+      
+      foreach (var term in invalidTerms)
+      {
+        yield return new ValidationResult($"Invalid sort term '{term}'.", new[] {nameof(OrderBy)});
+      }
     }
     
     public IQueryable<TEntity> Apply(IQueryable<TEntity> query)
@@ -790,7 +799,33 @@ namespace App.Infrastructure
       }
     }
     
-    private static IEnumerable<SortTerm> GetTermsFromModel() => typeof(T).GetTypeInfo().DeclaredProperties.
+    public IEnumerable<SortTerm> GetValidTerms()
+    {
+      var queryTerms = GetAllTerms().ToArray();
+      if (!queryTerms.Any())
+      {
+        yield break;
+      }
+      
+      var declaredTerms = GetTermsFromModel();
+      
+      foreach(var term in queryTerms)
+      {
+        var declaredTerm = declaredTerms
+          .SingleOrDefault(x => x.Name.Equals(term.Name, StringComparison.OrdinalIgnoreCase));
+        
+        if (declaredTerm == null) continue;
+        
+        yield return new SortTerm
+        {
+          Name = declaredTerm.Name,
+          Descending = term.Descengin,
+        }
+      }
+    }
+    
+    private static IEnumerable<SortTerm> GetTermsFromModel() => typeof(T).GetTypeInfo().DeclaredProperties
+    .Where(p => p.GetCustomAttributes<SortableAttribute>().Any()).Select(p => new SortTerm{ Name = p.Name})
     
   }
   
