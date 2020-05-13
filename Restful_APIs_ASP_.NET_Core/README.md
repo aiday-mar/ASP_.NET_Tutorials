@@ -708,9 +708,11 @@ namespace App.Models
   public class Room : Resource
   {
     [Sortable]
+    [Searchable]
     public string Name {get;set;}
     
-    [Sortable]
+    [Sortable(Default = true)]
+    [Searchable]
     public decimal Rate {get; set;}
   }
 }
@@ -801,6 +803,29 @@ namespace App.Infrastructure
     
     public IEnumerable<SortTerm> GetValidTerms()
     {
+      var queryTerms = GetAllTerms.ToArray();
+      if (!queryTerms.Any()) yield break;
+      var declaredTerms = GetTermsFromModel();
+      
+      foreach(var term in queryTerms)
+      {
+        var declaredTerm = declaredTerms.SingleOrDefault(x => x.Name.Equals(term.Name, StringComparison.OrdinalIgnoreCase));
+        if (declaredTerm == null) continue;
+        
+        yield return new SortTerm
+        {
+          Name = declaredTerm.Name,
+          Descending = term.Descending,
+        }
+      }
+    }
+    
+    private static IEnumerable<sortTerm> GetTermsFromModel()
+    => typeof(T).GetTypeInfo().DeclaredProperties.Where(p => p.GetCustomAttribute<SortableAttribute>().Any())
+    .Select(p => new SortTerm{Name = p.Name});
+    
+    public IEnumerable<SortTerm> GetValidTerms()
+    {
       var queryTerms = GetAllTerms().ToArray();
       if (!queryTerms.Any())
       {
@@ -836,4 +861,116 @@ namespace App.Infrastructure
     public bool Descending {get; set; }
   }
 }
+```
+
+Then some more code is added in order to create a search interface and create a form to retrieve and delete resources. Now to save data in the cache you may write : `[ResponseCache(Duration = 84600)]`. You can return the ETag header in the cache by using for example the following code :
+
+```
+var serialized = JsonConvert.SerializeObject(this);
+return Md5Hash.ForString(serialized);
+```
+
+Authentication checks the user is says who he says he is. Basic authentication checks the username and the password. Bearer authentication issues a token from the server. The Digest authentication makes a hash from the request data. In the OpenID syste, the client system send the username and passwrod, receives a token and sends an authorization to the server. We can create an authentication scheme as follows :
+
+```
+namespace App.Models
+{
+  public class UserEntity : IdentityUser<Guid>
+  {
+    public string Firstname {get; set;}
+    
+    public string Lastname {get; set;}
+    
+    public DateTimeOffset CreatedAt {get; set;}
+  }
+  
+  public class UserRoleEntity : IdentityRole<Guid>
+  {
+    public UserRoleEntity() : base()
+    {
+    
+    }
+    
+    public UserRoleEntity(string roleName) : base(roleName)
+    {
+    
+    }
+  }
+}
+```
+
+Now in the startup file you want to add these so we write :
+
+```
+private static void AddIdentityCoreServices(IServiceCollection services)
+{
+  var builder = services.AddIdentityCore<UserEntity>();
+  builder = new IdentityBuilder(
+    builder.UserType,
+    typeof(UserRoleEntity),
+    builder.Services);
+  
+  builder.AddRoles<UserRoleEntity>()
+         .AddEntityFrameworkStores<AppDbContext>()
+         .AddDefaultTokenProviders()
+         .AddSignInManager<SignInManager<UserEntity>>();
+}
+```
+
+Then you can also add a test user in the SeedData file :
+
+```
+private static async Task addTestUsers(
+  RoleManager<UserRoleEntity> roleManager,
+  UserManager<UserEntity> userManager)
+{
+  var dataExists = roleManager.Roles.Any() || userManager.Users.Any();
+  if (dataExists) { return; }
+  
+  await roleManager.CreateAsync(new UserRoleEntity("Admin"));
+  
+  var user = new UserEntity{
+    Email = "admin@app.local"
+    Username = "admin@app.local"
+    Firstname = "admin",
+    Lastname = "tester",
+    CreatedAt = DateTimeOffset.UtcNow
+  }
+  
+  await userManager.CreateAsync(user, "supersecrete123||");
+  await userManager.AddToRolesAsync(user, "Admin");
+  await userManager.UpdateAsync(user);
+}
+```
+
+Now we need to implement this method as follows :
+
+```
+public static async Task InitializeAsync(IServiceProvider services)
+{
+  await AddTestUsers(
+    services.GetRequiredService<RoleManager<UserRoleEntity>>(),
+    services.GetRequiredService<UserManager<UserEntity>>());
+    
+    ...
+}
+```
+
+Along with the Users file, there is also a UsersController and DefaultUsersController. One example of a token authetication manager is OpenIddict, this is a lightweight OpenID Connect authorization server that plugs into ASP .NET Core identity and identity framework core. We need to install OpenIddict and OpenIddict.EntityFrameworkCore from the nuget package manager. We need to configure this in the services as follows :
+
+```
+services.Configure<IdentityOptions>(options =>
+{
+  options.ClaimsIdentity.UsernameClaimType = OpenIdConnectConstants.Claims.Name;
+  options.ClaimsIdentity.UserIdclaimType = OpenIdConnectConstants.Claims.Subject;
+  options.ClaimsIdentity.RoleClaimType = OpenIdConnectConstance.Claims.Role;
+});
+
+services.AddAuthentication(options => {
+  options.DefaultScheme = OpenIddictValidationDefaults.AuthenticationScheme;
+})
+
+...
+
+app.UseAuthentication();
 ```
