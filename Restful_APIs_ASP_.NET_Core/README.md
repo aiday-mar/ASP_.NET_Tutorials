@@ -974,3 +974,5 @@ services.AddAuthentication(options => {
 
 app.UseAuthentication();
 ```
+
+Policies are groups of authorization requirements, like role checks or claim checks.
